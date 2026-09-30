@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>xmu-rollcall</title>
+<style>
+  :root {
+    --bg: #0d0d0d;
+    --card: #1a1a1a;
+    --border: #2a2a2a;
+    --text: #e5e5e5;
+    --muted: #9e9e9e;
+    --accent: #d4d4d4;
+    --accent-hover: #ffffff;
+    --ok: #4ade80;
+    --fail: #f87171;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    padding: 24px 16px 48px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+  header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 20px; flex-wrap: wrap; gap: 6px; }
+  header h1 { font-size: 18px; font-weight: 600; letter-spacing: .5px; }
+  .statusbar { color: var(--muted); font-size: 12px; }
+  .statusbar .dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: 5px; vertical-align: 1px; }
+  .dot.on { background: var(--ok); }
+  .dot.off { background: var(--muted); }
+  .dot.answering { background: #fbbf24; }
+
+  .auto-sign-panel {
+    display: flex; justify-content: space-between; align-items: center; gap: 14px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 13px 16px; margin-bottom: 18px;
+  }
+  .auto-sign-title { font-size: 14px; font-weight: 600; }
+  .auto-sign-note { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .auto-sign-panel.enabled { border-color: #355a43; }
+  .auto-sign-panel.enabled .auto-sign-title { color: var(--ok); }
+  .btn.danger { color: var(--fail); border-color: #5d3434; }
+
+  .empty { color: var(--muted); text-align: center; padding: 48px 0; font-size: 13px; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 18px;
+    margin-bottom: 12px;
+  }
+  .card .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .card h2 { font-size: 16px; font-weight: 600; }
+  .badge {
+    flex-shrink: 0;
+    font-size: 11px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--muted);
+    background: var(--bg);
+  }
+  .card .meta { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .card .row { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 12px; flex-wrap: wrap; }
+  .signed { color: var(--muted); font-size: 13px; }
+  .signed b { color: var(--text); font-weight: 600; }
+
+  .codebox { text-align: center; min-width: 180px; }
+  .code-fetching { color: var(--muted); font-size: 13px; }
+  .code-fetched { font-size: 30px; font-weight: 700; letter-spacing: 12px; padding-left: 12px; font-variant-numeric: tabular-nums; }
+  .code-failed { color: var(--fail); font-size: 13px; }
+
+  .spinner {
+    display: inline-block; width: 12px; height: 12px;
+    border: 2px solid var(--border); border-top-color: var(--muted);
+    border-radius: 50%; margin-right: 6px; vertical-align: -2px;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .qr-link { display: block; color: var(--accent); font-size: 12px; word-break: break-all; margin-top: 6px; }
+
+  .btn {
+    background: transparent; color: var(--accent);
+    border: 1px solid var(--border); border-radius: 6px;
+    padding: 7px 22px; font-size: 13px; cursor: pointer;
+    transition: background .15s, color .15s;
+  }
+  .btn:hover:not(:disabled) { background: var(--accent); color: var(--bg); }
+  .btn:disabled { opacity: .35; cursor: not-allowed; }
+  .btn.primary { background: var(--accent); color: var(--bg); font-weight: 600; }
+  .btn.primary:hover:not(:disabled) { background: var(--accent-hover); }
+  .btn.ghost { padding: 5px 14px; font-size: 12px; color: var(--muted); }
+
+  .result { font-size: 13px; margin-top: 10px; }
+  .result.ok { color: var(--ok); }
+  .result.fail { color: var(--fail); }
+
+  .history { margin-top: 32px; }
+  .history h3 { font-size: 13px; color: var(--muted); font-weight: 600; letter-spacing: 1px; margin-bottom: 10px; }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--border); }
+  th { color: var(--muted); font-weight: 500; }
+  td .s-ok { color: var(--ok); }
+  td .s-fail { color: var(--fail); }
+  td.code { font-variant-numeric: tabular-nums; letter-spacing: 2px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>xmu-rollcall</h1>
+    <div class="statusbar"><span class="dot off" id="pushdot"></span><span id="statusline">连接中…</span></div>
+  </header>
+
+  <section class="auto-sign-panel" id="autosignpanel">
+    <div>
+      <div class="auto-sign-title" id="autosigntitle">过半自动签到：关闭</div>
+      <div class="auto-sign-note" id="autosignnote">默认关闭；开启 12 小时后按实际时间自动失效</div>
+    </div>
+    <button class="btn" id="autosignbutton" onclick="toggleAutoSign()">开启 12 小时</button>
+  </section>
+
+  <div id="cards"><div class="empty">监控中…</div></div>
+
+  <section class="history">
+    <h3>历史记录</h3>
+    <table>
+      <thead><tr><th>时间</th><th>课程</th><th>类型</th><th>结果</th><th>码</th></tr></thead>
+      <tbody id="history"><tr><td colspan="5" style="color:var(--muted)">暂无记录</td></tr></tbody>
+    </table>
+  </section>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let lastJson = "";
+let autoSignEnabled = false;
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;",
+  }[c]));
+}
+
+function renderCard(c) {
+  let codeArea = "", btn = "", result = "";
+  if (c.kind === "number") {
+    if (c.code_status === "fetching") {
+      codeArea = '<div class="codebox"><div class="code-fetching"><span class="spinner"></span>正在取码…</div></div>';
+    } else if (c.code_status === "fetched") {
+      codeArea = '<div class="codebox"><div class="code-fetched">' + esc(c.code) + '</div></div>';
+    } else {
+      codeArea = '<div class="codebox"><div class="code-failed">取码失败 · 将暴力枚举</div></div>';
+    }
+  } else if (c.kind === "qr") {
+    codeArea = '<div class="codebox"><div class="code-fetching"><span class="spinner"></span>自动扫码中…</div>' +
+      (c.scan_url ? '<a class="qr-link" href="' + esc(c.scan_url) + '" target="_blank" rel="noopener">' + esc(c.scan_url) + '</a>' : '') +
+      '</div>';
+  }
+
+  const signed = c.signed_count == null ? "—" : c.signed_count;
+  const metaLine = [c.department_name, c.created_by_name].filter(Boolean).join(" · ");
+  const timeText = c.detected_at ? new Date(c.detected_at * 1000).toLocaleTimeString("zh-CN", {hour12: false}) : "";
+
+  if (c.status === "pending") {
+    btn = (c.kind === "number" || c.kind === "radar")
+      ? '<button class="btn primary" onclick="answer(\'' + esc(c.rollcall_id) + '\')">签到</button>'
+      : '<span class="badge">等待扫码</span>';
+  } else if (c.status === "answering") {
+    btn = '<button class="btn" disabled>签到中…</button>';
+  } else if (c.status === "auto_scanning") {
+    btn = '<button class="btn" disabled>扫码中…</button>';
+  } else {
+    const ok = c.result && c.result.ok;
+    result = '<div class="result ' + (ok ? "ok" : "fail") + '">' +
+      (c.status === "success" ? "✓ 签到成功" : c.status === "already" ? "✓ 已签到过" : c.status === "expired" ? "签到已过期" : "✗ 签到失败") +
+      (c.result && c.result.detail ? " · " + esc(c.result.detail) : "") +
+      (c.result && c.result.code ? " · " + esc(c.result.code) : "") +
+      (c.result && c.result.time ? ' <span style="color:var(--muted)">' + esc(c.result.time) + "</span>" : "") +
+      "</div>";
+    btn = '<button class="btn ghost" onclick="dismiss(\'' + esc(c.rollcall_id) + '\')">关闭</button>';
+  }
+
+  return '<div class="card">' +
+    '<div class="top"><h2>' + esc(c.course_title) + "</h2>" +
+    '<span class="badge">' + esc(c.type_label) + "</span></div>" +
+    '<div class="meta">' + esc(metaLine) + (timeText ? " · " + esc(timeText) : "") + "</div>" +
+    '<div class="row"><span class="signed">已签到 <b>' + esc(signed) + "</b> 人</span>" +
+    codeArea + btn + "</div>" +
+    result +
+    "</div>";
+}
+
+function renderCards(cards) {
+  if (!cards.length) {
+    $("cards").innerHTML = '<div class="empty">监控中…</div>';
+  } else {
+    $("cards").innerHTML = cards.map(renderCard).join("");
+  }
+}
+
+function renderHistory(history) {
+  if (!history.length) {
+    $("history").innerHTML = '<tr><td colspan="5" style="color:var(--muted)">暂无记录</td></tr>';
+    return;
+  }
+  $("history").innerHTML = history.map((h) => {
+    const cls = h.status === "success" ? "s-ok" : "s-fail";
+    const label = h.status === "success" ? "成功" : "失败";
+    return "<tr><td>" + esc(h.time) + "</td><td>" + esc(h.course) + "</td><td>" +
+      esc(h.type) + '</td><td class="' + cls + '">' + label + "</td><td class=\"code\">" +
+      esc(h.code) + "</td></tr>";
+  }).join("");
+}
+
+function renderStatus(sys) {
+  const dot = $("pushdot");
+  if (!sys.push_enabled) {
+    dot.className = "dot off";
+    $("statusline").textContent = "推送停用 · 轮询兜底 " + sys.poll_interval + "s";
+  } else if (sys.push_connected) {
+    dot.className = "dot on";
+    $("statusline").textContent = "推送已连接 · 轮询兜底 " + sys.poll_interval + "s";
+  } else {
+    dot.className = "dot off";
+    $("statusline").textContent = "推送断开 · 轮询兜底 " + sys.poll_interval + "s";
+  }
+  $("statusline").textContent += " · " + sys.account_name +
+    " · 运行 " + formatSeconds(sys.running_seconds) + " · v" + sys.version;
+  renderAutoSign(sys.auto_sign || {enabled: false, remaining_seconds: 0});
+}
+
+function renderAutoSign(status) {
+  autoSignEnabled = !!status.enabled;
+  const panel = $("autosignpanel");
+  const button = $("autosignbutton");
+  panel.className = "auto-sign-panel" + (autoSignEnabled ? " enabled" : "");
+  $("autosigntitle").textContent = "过半自动签到：" + (autoSignEnabled ? "已开启" : "关闭");
+  $("autosignnote").textContent = autoSignEnabled
+    ? "剩余 " + formatCountdown(status.remaining_seconds || 0) + "，到期自动关闭"
+    : "默认关闭；开启 12 小时后按实际时间自动失效";
+  button.textContent = autoSignEnabled ? "立即关闭" : "开启 12 小时";
+  button.className = "btn" + (autoSignEnabled ? " danger" : "");
+}
+
+function formatCountdown(s) {
+  s = Math.max(0, Number(s) || 0);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  return h + "小时" + m + "分钟";
+}
+
+function formatSeconds(s) {
+  if (s < 60) return s + "s";
+  if (s < 3600) return Math.floor(s / 60) + "m" + (s % 60) + "s";
+  return Math.floor(s / 3600) + "h" + Math.floor((s % 3600) / 60) + "m";
+}
+
+async function tick() {
+  try {
+    const resp = await fetch("/api/state");
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const json = JSON.stringify(data);
+    if (json !== lastJson) {
+      lastJson = json;
+      renderCards(data.cards);
+      renderHistory(data.history);
+      renderStatus(data.system);
+    }
+  } catch (e) { /* 服务暂不可用，下轮重试 */ }
+}
+
+async function answer(rid) {
+  try {
+    const resp = await fetch("/api/answer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rollcall_id: rid }),
+    });
+    if (!resp.ok) tick();
+  } catch (e) { /* ignore */ }
+}
+
+async function dismiss(rid) {
+  try {
+    await fetch("/api/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ rollcall_id: rid }),
+    });
+    tick();
+  } catch (e) { /* ignore */ }
+}
+
+async function toggleAutoSign() {
+  const button = $("autosignbutton");
+  button.disabled = true;
+  try {
+    const resp = await fetch("/api/auto-sign", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: !autoSignEnabled }),
+    });
+    if (resp.ok) {
+      lastJson = "";
+      await tick();
+    }
+  } catch (e) { /* 下轮状态刷新会恢复按钮 */ }
+  button.disabled = false;
+}
+
+tick();
+setInterval(tick, 1500);
+</script>
+</body>
+</html>

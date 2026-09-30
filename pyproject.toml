@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xmu-rollcall"
+dynamic = ["version"]
+description = "XMU TronClass auto-rollcall CLI and library (monitoring, number/radar/QR rollcall answering)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["xmu", "xiamen-university", "rollcall", "tronclass", "automation", "cli"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Education",
+    "Intended Audience :: Developers",
+    "Topic :: Education",
+    "Topic :: Utilities",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Operating System :: OS Independent",
+    "Environment :: Console",
+]
+dependencies = [
+    "requests>=2.25.0",
+    "pycryptodome>=3.10.0",  # 注意：包名为 pycryptodome，导入名是 Crypto
+    "click>=8.1.0",
+    "aiohttp>=3.9.0",
+    "Flask>=3.0.0",
+]
+
+[project.optional-dependencies]
+qr = ["pyngrok>=7.0.0"]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+xmu = "xmu_rollcall.cli:cli"
+xmu-rollcall = "xmu_rollcall.cli:cli"
+xmu-monitor = "xmu_rollcall.monitor:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+xmu_rollcall = ["templates/*.html"]
+
+[tool.setuptools.dynamic]
+version = { attr = "xmu_rollcall.__version__" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

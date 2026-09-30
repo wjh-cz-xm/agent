@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# 测试与工具
+.pytest_cache/
+.coverage
+htmlcov/
+.ruff_cache/
+
+# 虚拟环境
+.venv/
+venv/
+
+# IDE / 编辑器
+.idea/
+.vscode/
+*.swp
+
+# 本地配置与密钥（默认 ~/.xmu_rollcall，含明文密码/token，任何情况下都不得提交）
+.xmu_rollcall/
+
+# Cloud credentials and monitor output
+.env
+.env.*
+!.env.example
+.monitor/
+*.pem
+*.key
